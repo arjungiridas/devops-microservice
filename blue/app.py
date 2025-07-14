@@ -1,9 +1,19 @@
 from flask import Flask
+from prometheus_client import start_http_server, Counter
+import time
+
 app = Flask(__name__)
 
-@app.route("/")
-def home():
-    return "<h1 style='color:blue'>Blue Version 🚀</h1>"
+# Define a counter metric
+REQUEST_COUNT = Counter('app_requests_total', 'Total number of requests')
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+@app.route('/')
+def hello():
+    REQUEST_COUNT.inc()
+    return "🚀 Hello from your Dockerized Flask app deployed via EC2!"
+
+if __name__ == '__main__':
+    # Start Prometheus metrics server on port 8000
+    start_http_server(8000)
+    app.run(host='0.0.0.0', port=5000)
+
