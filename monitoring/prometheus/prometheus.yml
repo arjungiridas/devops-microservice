@@ -9,11 +9,15 @@ scrape_configs:
   - job_name: 'flask-blue'
     static_configs:
       - targets: ['172.31.84.235:8001']
+        labels:
+          color: "blue"
 
   - job_name: 'flask-green'
     static_configs:
       - targets: ['172.31.84.235:8002']
-
+        labels:
+          color: "green"
+          
   - job_name: 'node_exporter'
     static_configs:
       - targets: ['node-exporter:9100']
