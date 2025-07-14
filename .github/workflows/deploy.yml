@@ -1,0 +1,36 @@
+name: Deploy to EC2 (Blue-Green)
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: SSH and Deploy to EC2
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+
+    - name: Set up SSH Key
+      run: |
+        echo "${{ secrets.EC2_SSH_KEY }}" > key.pem
+        chmod 600 key.pem
+
+    - name: Deploy via SSH
+      run: |
+        ssh -o StrictHostKeyChecking=no -i key.pem ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+          cd ~/devops-microservice
+          git pull
+
+          # Change to blue or green depending on current version
+          cd blue  # OR green
+          docker build -t flask-blue .
+          docker rm -f flask-blue || true
+          docker run -d -p 5001:5000 --name flask-blue flask-blue
+
+          # Reload Nginx if needed (to switch to port 5001 or 5002)
+          sudo systemctl restart nginx
+        EOF
