@@ -10,7 +10,7 @@ REQUEST_COUNT = Counter('app_requests_total', 'Total number of requests')
 @app.route('/')
 def hello():
     REQUEST_COUNT.inc()
-    return "🚀 Hello from your Dockerized Flask app deployed via EC2-green!"
+    return "🚀 Hello from the UPDATED Flask app via Blue-Green Deployment(Blue)!"
 
 if __name__ == '__main__':
     # Start Prometheus metrics server on port 8000
