@@ -5,7 +5,7 @@ FROM python:3.9-slim
 WORKDIR /app
 
 # Copy files
-COPY . .
+COPY ../shared/app.py .
 
 # Install dependencies
 RUN pip install -r requirements.txt
