@@ -27,14 +27,13 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-            - name: 🐳 Build and Push Docker Image
+      - name: 🐳 Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
-          context: ./blue           # or ./green
-          file: ./blue/Dockerfile
+          context: .                       # Root of repo where shared/app.py is
+          file: ./blue/Dockerfile          # OR ./green/Dockerfile
           push: true
           tags: ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest
-
 
       - name: ⚙️ SSH & Deploy to EC2 (Blue-Green)
         uses: appleboy/ssh-action@master
