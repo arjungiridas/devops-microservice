@@ -13,5 +13,10 @@ RUN pip install -r requirements.txt
 # Expose port
 EXPOSE 5000
 EXPOSE 8000
+
+# Set version
+ENV VERSION=blue
+
+
 # Run the app
 CMD ["python", "app.py"]
