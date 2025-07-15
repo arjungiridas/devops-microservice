@@ -6,7 +6,7 @@ WORKDIR /app
 
 # Copy files
 COPY ../shared/app.py .
-COPY ../shared/requirements.txt /app/requirements.txt
+COPY requirements.txt /app/requirements.txt
 
 
 # Install dependencies
