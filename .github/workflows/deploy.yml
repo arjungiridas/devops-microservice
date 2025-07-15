@@ -1,3 +1,39 @@
+name: CI/CD Pipeline with Blue-Green Deployment
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  IMAGE_NAME: flask-app
+  BLUE_PORT: 5001
+  GREEN_PORT: 5002
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v3
+
+      - name: 🔧 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔑 Log in to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: 🐳 Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./green  # or ./blue depending on your setup
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest
+
       - name: ⚙️ SSH & Deploy to EC2 (Blue-Green)
         uses: appleboy/ssh-action@master
         with:
@@ -5,9 +41,13 @@
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            echo "✅ Pulling latest Docker image..."
             docker pull ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest
 
+            echo "🔍 Checking active port..."
             active_port=$(curl -s http://localhost | grep -oE '5001|5002')
+            echo "🟢 Active port detected: $active_port"
+
             if [ "$active_port" == "5001" ]; then
               next_color="green"
               next_port=${{ env.GREEN_PORT }}
@@ -16,14 +56,18 @@
               next_port=${{ env.BLUE_PORT }}
             fi
 
+            echo "🔄 Switching to: $next_color on port $next_port"
+
             docker stop flask-$next_color || true
             docker rm flask-$next_color || true
 
-            docker run -d \
-              -e VERSION=$next_color \
-              -p $next_port:5000 -p 8000:8000 \
+            echo "🚀 Running new container..."
+            docker run -d -p $next_port:5000 -p 8000:8000 \
               --name flask-$next_color \
+              -e VERSION=$next_color \
               ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest
 
+            echo "📄 Updating Nginx config..."
             sudo sed -i "s/5001\|5002/$next_port/" /etc/nginx/sites-available/default
             sudo systemctl reload nginx
+            echo "✅ Nginx reloaded. App is now live on port $next_port"
