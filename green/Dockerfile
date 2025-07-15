@@ -14,5 +14,9 @@ RUN pip install -r requirements.txt
 EXPOSE 5000 
 EXPOSE 8000
 
+# Set version
+ENV VERSION=green
+
+
 # Run the app
 CMD ["python", "app.py"]
