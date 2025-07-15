@@ -13,6 +13,7 @@ def hello():
     version = os.getenv('VERSION', 'Unknown')
     return f"""
     <html>
+    <head><title>Green Version</title></head>
     <body style="background-color:green; color:white; font-family:Arial; text-align:center; padding-top:100px;">
         <h1>🚀 Hello from version: {version}</h1>
         <h2>This is the GREEN environment!</h2>
