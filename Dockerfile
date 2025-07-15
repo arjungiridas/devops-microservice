@@ -6,9 +6,11 @@ WORKDIR /app
 
 # Copy files
 COPY ../shared/app.py .
+COPY ../shared/requirements.txt /app/requirements.txt
+
 
 # Install dependencies
-RUN pip install -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Expose port
 EXPOSE 5000
