@@ -3,27 +3,40 @@ from prometheus_client import start_http_server, Counter
 import os
 
 app = Flask(__name__)
-
-# Prometheus metric
 REQUEST_COUNT = Counter('app_requests_total', 'Total number of requests')
 
 @app.route('/')
 def hello():
     REQUEST_COUNT.inc()
-    version = os.getenv('VERSION', 'Unknown')
+    version = os.getenv('VERSION', 'Blue')
     return f"""
     <html>
-    <head><title>Blue Version</title></head>
-    <body style="background-color:green; color:white; font-family:Arial; text-align:center; padding-top:100px;">
-        <h1>🚀 Hello from version: {version}</h1>
-        <h2>This is the GREEN environment!</h2>
+    <head>
+        <title>Flask App - Blue</title>
+        <style>
+            body {{
+                background: linear-gradient(to bottom right, #0f2027, #203a43, #2c5364);
+                color: #ffffff;
+                font-family: 'Segoe UI', sans-serif;
+                text-align: center;
+                padding-top: 100px;
+            }}
+            h1 {{
+                font-size: 3em;
+                color: #00bfff;
+            }}
+        </style>
+    </head>
+    <body>
+        <h1>🚀 Blue Version: {version}</h1>
+        <p>You're running the Blue environment of the Flask app.</p>
     </body>
     </html>
     """
 
 @app.route('/version')
 def version():
-    return os.getenv('VERSION', 'Unknown')
+    return os.getenv('VERSION', 'Blue')
 
 @app.route('/health')
 def health():
