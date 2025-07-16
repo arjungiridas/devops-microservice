@@ -30,10 +30,9 @@ jobs:
       - name: 🐳 Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ./blue/Dockerfile      # or ./green/Dockerfile
+          context: ./blue      # Blue or Green (any, app.py is same)
+          file: ./blue/Dockerfile
           push: true
-          no-cache: true               # ⬅️ This forces rebuild
           tags: ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest
 
       - name: ⚙️ SSH & Deploy to EC2 (Blue-Green)
@@ -43,12 +42,13 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            echo "✅ Pulling latest Docker image..."
+            echo "✅ Pulling latest image..."
+            docker rmi ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest || true
             docker pull ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest
 
             echo "🔍 Checking active port..."
             active_port=$(curl -s http://localhost | grep -oE '5001|5002')
-            echo "🟢 Active port detected: $active_port"
+            echo "🟢 Active port: $active_port"
 
             if [ "$active_port" == "5001" ]; then
               next_color="green"
@@ -58,19 +58,16 @@ jobs:
               next_port=${{ env.BLUE_PORT }}
             fi
 
-            echo "🧹 Stopping and removing old container/image..."
+            echo "🛑 Stopping old container..."
             docker stop flask-$next_color || true
             docker rm flask-$next_color || true
-            docker rmi ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest || true
 
-            echo "🚀 Running new container..."
+            echo "🚀 Starting $next_color on port $next_port"
             docker run -d -p $next_port:5000 -p 8000:8000 \
-              --name flask-$next_color \
               -e VERSION=$next_color \
+              --name flask-$next_color \
               ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest
 
-            echo "🔁 Updating Nginx config..."
+            echo "🔁 Reloading Nginx..."
             sudo sed -i "s/5001\|5002/$next_port/" /etc/nginx/sites-available/default
             sudo systemctl reload nginx
-
-            echo "✅ Blue-Green deployment complete!"
