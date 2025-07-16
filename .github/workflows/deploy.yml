@@ -30,8 +30,8 @@ jobs:
       - name: 🐳 Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
-          context: .                            # Root directory, so shared/ is included
-          file: ./green/Dockerfile              # OR ./blue/Dockerfile
+          context: .                 # Shared app.py is at root
+          file: ./blue/Dockerfile    # Or ./green/Dockerfile, both use shared/app.py
           push: true
           tags: ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest
 
@@ -42,12 +42,11 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            echo "✅ Pulling latest Docker image..."
-            docker pull ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest
+            echo "✅ Pulling latest Docker image info..."
 
-            echo "🔍 Checking active port..."
+            # Detect currently active port
             active_port=$(curl -s http://localhost | grep -oE '5001|5002')
-            echo "🟢 Active port detected: $active_port"
+            echo "🟢 Active port: $active_port"
 
             if [ "$active_port" == "5001" ]; then
               next_color="green"
@@ -57,22 +56,26 @@ jobs:
               next_port=${{ env.BLUE_PORT }}
             fi
 
-            echo "🔄 Switching to: $next_color on port $next_port"
+            echo "🔄 Preparing to deploy $next_color on port $next_port"
 
+            # Stop and remove old container
             docker stop flask-$next_color || true
             docker rm flask-$next_color || true
+
+            # Remove old image
             docker rmi ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest || true
 
-            echo "⬇️ Pulling fresh image..."
+            # Pull latest image
             docker pull ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest
 
-            echo "🚀 Running new container..."
+            # Run new container with VERSION env
             docker run -d -p $next_port:5000 -p 8000:8000 \
               --name flask-$next_color \
               -e VERSION=$next_color \
               ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest
 
-            echo "📄 Updating Nginx config..."
+            # Update Nginx to point to new container
             sudo sed -i "s/5001\|5002/$next_port/" /etc/nginx/sites-available/default
             sudo systemctl reload nginx
-            echo "✅ Nginx reloaded. App is now live on port $next_port"
+
+            echo "✅ Deployment complete. $next_color version is now live!"
