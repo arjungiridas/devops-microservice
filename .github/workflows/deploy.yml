@@ -30,8 +30,8 @@ jobs:
       - name: 🐳 Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
-          context: .                 # Shared app.py is at root
-          file: ./blue/Dockerfile    # Or ./green/Dockerfile, both use shared/app.py
+          context: .                      # Use root since shared/app.py is here
+          file: ./blue/Dockerfile         # Use blue or green Dockerfile
           push: true
           tags: ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest
 
@@ -42,12 +42,11 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            echo "✅ Pulling latest Docker image info..."
-
-            # Detect currently active port
+            echo "✅ Pulling latest Docker image..."
+            
             active_port=$(curl -s http://localhost | grep -oE '5001|5002')
             echo "🟢 Active port: $active_port"
-
+            
             if [ "$active_port" == "5001" ]; then
               next_color="green"
               next_port=${{ env.GREEN_PORT }}
@@ -55,27 +54,20 @@ jobs:
               next_color="blue"
               next_port=${{ env.BLUE_PORT }}
             fi
+            
+            echo "🔄 Replacing $next_color on port $next_port"
 
-            echo "🔄 Preparing to deploy $next_color on port $next_port"
-
-            # Stop and remove old container
             docker stop flask-$next_color || true
             docker rm flask-$next_color || true
-
-            # Remove old image
             docker rmi ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest || true
 
-            # Pull latest image
             docker pull ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest
 
-            # Run new container with VERSION env
             docker run -d -p $next_port:5000 -p 8000:8000 \
               --name flask-$next_color \
               -e VERSION=$next_color \
               ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest
 
-            # Update Nginx to point to new container
             sudo sed -i "s/5001\|5002/$next_port/" /etc/nginx/sites-available/default
             sudo systemctl reload nginx
-
-            echo "✅ Deployment complete. $next_color version is now live!"
+            echo "✅ $next_color is live!"
