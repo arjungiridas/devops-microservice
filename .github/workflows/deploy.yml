@@ -55,7 +55,7 @@ jobs:
             else
               next_color="blue"
               next_port=${{ env.BLUE_PORT }}
-            if
+            fi
 
             echo "🔄 Switching to: $next_color on port $next_port"
 
