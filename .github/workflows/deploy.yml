@@ -30,9 +30,10 @@ jobs:
       - name: 🐳 Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
-          context: .                          # Root contains shared/app.py
-          file: ./blue/Dockerfile             # Or ./green/Dockerfile if needed
+          context: .
+          file: ./blue/Dockerfile      # or ./green/Dockerfile
           push: true
+          no-cache: true               # ⬅️ This forces rebuild
           tags: ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest
 
       - name: ⚙️ SSH & Deploy to EC2 (Blue-Green)
@@ -42,14 +43,12 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            echo "🔁 Pulling latest code from GitHub..."
-            cd ~/devops-microservice
-            git reset --hard
-            git pull origin main
+            echo "✅ Pulling latest Docker image..."
+            docker pull ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest
 
             echo "🔍 Checking active port..."
             active_port=$(curl -s http://localhost | grep -oE '5001|5002')
-            echo "🟢 Active port: $active_port"
+            echo "🟢 Active port detected: $active_port"
 
             if [ "$active_port" == "5001" ]; then
               next_color="green"
@@ -59,21 +58,19 @@ jobs:
               next_port=${{ env.BLUE_PORT }}
             fi
 
-            echo "🧹 Cleaning up old container and image..."
+            echo "🧹 Stopping and removing old container/image..."
             docker stop flask-$next_color || true
             docker rm flask-$next_color || true
             docker rmi ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest || true
 
-            echo "⬇️ Pulling new image..."
-            docker pull ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest
-
-            echo "🚀 Running new container on port $next_port..."
+            echo "🚀 Running new container..."
             docker run -d -p $next_port:5000 -p 8000:8000 \
               --name flask-$next_color \
               -e VERSION=$next_color \
               ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest
 
-            echo "🔁 Updating Nginx to forward to $next_port"
+            echo "🔁 Updating Nginx config..."
             sudo sed -i "s/5001\|5002/$next_port/" /etc/nginx/sites-available/default
             sudo systemctl reload nginx
-            echo "✅ Deployment complete. $next_color is now live."
+
+            echo "✅ Blue-Green deployment complete!"
