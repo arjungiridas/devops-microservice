@@ -2,10 +2,14 @@ FROM python:3.9-slim
 
 WORKDIR /app
 
-COPY ../shared/app.py .
+# Copy requirements first to use Docker cache efficiently
 COPY ../requirements.txt .
 
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies
+RUN pip install -r requirements.txt
+
+# NOW copy the latest app.py
+COPY ../shared/app.py .
 
 EXPOSE 5000
 EXPOSE 8000
