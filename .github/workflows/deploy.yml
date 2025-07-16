@@ -30,8 +30,8 @@ jobs:
       - name: 🐳 Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
-          context: .                       # Root of repo where shared/app.py is
-          file: ./blue/Dockerfile          # OR ./green/Dockerfile
+          context: .                            # Root directory, so shared/ is included
+          file: ./green/Dockerfile              # OR ./blue/Dockerfile
           push: true
           tags: ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest
 
@@ -61,6 +61,10 @@ jobs:
 
             docker stop flask-$next_color || true
             docker rm flask-$next_color || true
+            docker rmi ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest || true
+
+            echo "⬇️ Pulling fresh image..."
+            docker pull ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest
 
             echo "🚀 Running new container..."
             docker run -d -p $next_port:5000 -p 8000:8000 \
