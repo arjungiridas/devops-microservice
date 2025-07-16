@@ -30,8 +30,8 @@ jobs:
       - name: 🐳 Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
-          context: .                      # Use root since shared/app.py is here
-          file: ./blue/Dockerfile         # Use blue or green Dockerfile
+          context: .                          # Root contains shared/app.py
+          file: ./blue/Dockerfile             # Or ./green/Dockerfile if needed
           push: true
           tags: ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest
 
@@ -42,11 +42,15 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            echo "✅ Pulling latest Docker image..."
-            
+            echo "🔁 Pulling latest code from GitHub..."
+            cd ~/devops-microservice
+            git reset --hard
+            git pull origin main
+
+            echo "🔍 Checking active port..."
             active_port=$(curl -s http://localhost | grep -oE '5001|5002')
             echo "🟢 Active port: $active_port"
-            
+
             if [ "$active_port" == "5001" ]; then
               next_color="green"
               next_port=${{ env.GREEN_PORT }}
@@ -54,20 +58,22 @@ jobs:
               next_color="blue"
               next_port=${{ env.BLUE_PORT }}
             fi
-            
-            echo "🔄 Replacing $next_color on port $next_port"
 
+            echo "🧹 Cleaning up old container and image..."
             docker stop flask-$next_color || true
             docker rm flask-$next_color || true
             docker rmi ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest || true
 
+            echo "⬇️ Pulling new image..."
             docker pull ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest
 
+            echo "🚀 Running new container on port $next_port..."
             docker run -d -p $next_port:5000 -p 8000:8000 \
               --name flask-$next_color \
               -e VERSION=$next_color \
               ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest
 
+            echo "🔁 Updating Nginx to forward to $next_port"
             sudo sed -i "s/5001\|5002/$next_port/" /etc/nginx/sites-available/default
             sudo systemctl reload nginx
-            echo "✅ $next_color is live!"
+            echo "✅ Deployment complete. $next_color is now live."
