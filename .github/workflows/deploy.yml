@@ -6,7 +6,6 @@ on:
       - main
 
 env:
-  IMAGE_NAME: flask-app
   BLUE_PORT: 5001
   GREEN_PORT: 5002
 
@@ -27,13 +26,21 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: 🐳 Build and Push Docker Image
+      - name: 🐳 Build and Push Docker Image for Blue
         uses: docker/build-push-action@v5
         with:
-          context: ./blue      # Blue or Green (any, app.py is same)
+          context: ./blue
           file: ./blue/Dockerfile
           push: true
-          tags: ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest
+          tags: ${{ secrets.DOCKERHUB_USER }}/flask-blue:latest
+
+      - name: 🐳 Build and Push Docker Image for Green
+        uses: docker/build-push-action@v5
+        with:
+          context: ./green
+          file: ./green/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USER }}/flask-green:latest
 
       - name: ⚙️ SSH & Deploy to EC2 (Blue-Green)
         uses: appleboy/ssh-action@master
@@ -42,32 +49,33 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            echo "✅ Pulling latest image..."
-            docker rmi ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest || true
-            docker pull ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest
-
-            echo "🔍 Checking active port..."
-            active_port=$(curl -s http://localhost | grep -oE '5001|5002')
-            echo "🟢 Active port: $active_port"
+            echo "🔍 Detecting active port..."
+            active_port=$(curl -s http://localhost | grep -oE '5001|5002' || echo "")
 
             if [ "$active_port" == "5001" ]; then
               next_color="green"
               next_port=${{ env.GREEN_PORT }}
+              image_tag="flask-green"
             else
               next_color="blue"
               next_port=${{ env.BLUE_PORT }}
+              image_tag="flask-blue"
             fi
 
-            echo "🛑 Stopping old container..."
+            echo "🔁 Switching to $next_color on port $next_port using image $image_tag"
+
             docker stop flask-$next_color || true
             docker rm flask-$next_color || true
+            docker rmi ${{ secrets.DOCKERHUB_USER }}/$image_tag:latest || true
+            docker pull ${{ secrets.DOCKERHUB_USER }}/$image_tag:latest
 
-            echo "🚀 Starting $next_color on port $next_port"
             docker run -d -p $next_port:5000 -p 8000:8000 \
-              -e VERSION=$next_color \
               --name flask-$next_color \
-              ${{ secrets.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest
+              -e VERSION=$next_color \
+              ${{ secrets.DOCKERHUB_USER }}/$image_tag:latest
 
-            echo "🔁 Reloading Nginx..."
+            echo "⚙️ Updating Nginx config to point to port $next_port"
             sudo sed -i "s/5001\|5002/$next_port/" /etc/nginx/sites-available/default
             sudo systemctl reload nginx
+
+            echo "✅ Deployment of $next_color complete"
